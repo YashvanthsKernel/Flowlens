@@ -9,7 +9,6 @@ import {
     Server,
     Zap,
     TrendingUp,
-    Clock
 } from 'lucide-react';
 import { SystemHealth, ServiceHealth, PolicyMetrics } from '@/lib/types';
 
@@ -52,7 +51,6 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
 
 export function SystemHealthPanel({ health, policyMetrics }: SystemHealthPanelProps) {
     const overallStatus = statusConfig[health.overall];
-    const OverallIcon = overallStatus.icon;
 
     return (
         <div className="space-y-6">

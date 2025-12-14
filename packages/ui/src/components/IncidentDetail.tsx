@@ -6,7 +6,6 @@ import {
     X,
     AlertTriangle,
     CheckCircle,
-    XCircle,
     Clock,
     TrendingUp,
     TrendingDown,
@@ -218,9 +217,9 @@ export function IncidentDetail({ incident, onClose, onApproveAction, onDenyActio
                 <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className={`w-5 h-5 ${incident.severity === 'critical' ? 'text-red-400' :
-                                incident.severity === 'high' ? 'text-orange-400' :
-                                    incident.severity === 'medium' ? 'text-amber-400' :
-                                        'text-blue-400'
+                            incident.severity === 'high' ? 'text-orange-400' :
+                                incident.severity === 'medium' ? 'text-amber-400' :
+                                    'text-blue-400'
                             }`} />
                         <span className="text-xs text-gray-400">
                             {formatDistanceToNow(new Date(incident.timestamp), { addSuffix: true })}
@@ -248,8 +247,8 @@ export function IncidentDetail({ incident, onClose, onApproveAction, onDenyActio
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as typeof activeTab)}
                         className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm transition-all ${activeTab === tab.id
-                                ? 'bg-lens-500/20 text-lens-400'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            ? 'bg-lens-500/20 text-lens-400'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`}
                     >
                         <tab.icon className="w-4 h-4" />
