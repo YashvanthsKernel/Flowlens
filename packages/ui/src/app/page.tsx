@@ -81,7 +81,7 @@ export default function Home() {
                         <div className="hidden md:flex items-center gap-4">
                             <SimulateButton onSimulate={handleSimulate} />
                             <a
-                                href="https://github.com/flowlens/flowlens"
+                                href="https://github.com/YashvanthsKernel/Flowlens"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2 px-4 py-2 glass rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-all text-sm"
@@ -118,7 +118,7 @@ export default function Home() {
                             <div className="p-4 space-y-3">
                                 <SimulateButton onSimulate={handleSimulate} />
                                 <a
-                                    href="https://github.com/flowlens/flowlens"
+                                    href="https://github.com/YashvanthsKernel/Flowlens"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center gap-2 px-4 py-2 glass rounded-lg text-gray-300 hover:text-white text-sm"
