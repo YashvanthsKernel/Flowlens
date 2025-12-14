@@ -1,0 +1,29 @@
+{
+    "name": "sync-flows",
+    "description": "Synchronize Kestra flows and regenerate TypeScript types",
+    "version": "1.0.0",
+    "instructions": [
+        "1. Validate all Kestra YAML files in packages/kestra-flows/flows/",
+        "2. Extract input/output schemas from each flow",
+        "3. Generate TypeScript interfaces in packages/agent-core/src/types/",
+        "4. Update barrel exports",
+        "5. Run TypeScript compilation to verify",
+        "6. Create PR with changes"
+    ],
+    "commands": [
+        "cd packages/kestra-flows && yamllint flows/*.yaml",
+        "cd packages/agent-core && npm run build",
+        "npm run lint"
+    ],
+    "files_to_modify": [
+        "packages/agent-core/src/types/kestra.ts",
+        "packages/agent-core/src/types/index.ts"
+    ],
+    "auto_pr": {
+        "title": "chore: sync Kestra flow types",
+        "labels": [
+            "automation",
+            "types"
+        ]
+    }
+}

@@ -1,0 +1,91 @@
+# FlowLens Policy Model - Supervised Fine-Tuning Config
+# Uses Oumi for training a decision policy model
+
+model:
+  name: "flowlens-policy-v1"
+  base_model: "Qwen/Qwen2.5-1.5B-Instruct"  # Small model for fast inference
+  
+  # Model architecture settings
+  architecture:
+    type: "causal_lm"
+    use_flash_attention: true
+    gradient_checkpointing: true
+
+training:
+  # Training hyperparameters
+  epochs: 3
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  
+  # Optimizer
+  optimizer: "adamw_torch"
+  lr_scheduler: "cosine"
+  
+  # Mixed precision
+  bf16: true
+  
+  # Checkpointing
+  save_strategy: "epoch"
+  save_total_limit: 3
+
+data:
+  # Training data paths
+  train_file: "data/labeled_decisions.jsonl"
+  eval_file: "data/eval_decisions.jsonl"
+  
+  # Data format
+  format: "instruction"
+  instruction_template: |
+    You are an AI Ops decision policy. Given the following incident analysis, evaluate and score the proposed actions.
+    
+    ANALYSIS:
+    {input}
+    
+    TASK: For each proposed action, provide a confidence score (0-1) and whether it should be auto-approved.
+    
+    RESPONSE:
+  response_template: "{output}"
+  
+  # Preprocessing
+  max_length: 2048
+  truncation: true
+
+evaluation:
+  # Evaluation metrics
+  metrics:
+    - accuracy
+    - f1
+    - precision
+    - recall
+  
+  # LLM-as-judge for quality assessment
+  llm_judge:
+    enabled: true
+    model: "gpt-4"  # Or local model
+    criteria:
+      - "action_appropriateness"
+      - "risk_assessment_accuracy"
+      - "reasoning_quality"
+
+output:
+  # Output paths
+  output_dir: "checkpoints/policy-v1"
+  logging_dir: "logs/policy-v1"
+  
+  # Hub settings (optional)
+  push_to_hub: false
+  hub_model_id: "flowlens/policy-v1"
+
+# Inference settings for deployment
+inference:
+  # Quantization for deployment
+  quantization: "int8"
+  
+  # Batch inference
+  batch_size: 8
+  max_new_tokens: 512
+  temperature: 0.3
+  top_p: 0.9

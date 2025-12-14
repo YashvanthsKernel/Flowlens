@@ -1,0 +1,27 @@
+{
+    "name": "add-action-type",
+    "description": "Add a new action type to the decision system",
+    "version": "1.0.0",
+    "instructions": [
+        "1. Add the action type to ActionType union in packages/ui/src/lib/types.ts",
+        "2. Add the action icon mapping in IncidentTimeline.tsx and IncidentDetail.tsx",
+        "3. Add execution logic in decision-flow.yaml Switch cases",
+        "4. Add to safety constraints in Oumi configs if needed",
+        "5. Create sample training data for the new action",
+        "6. Update documentation"
+    ],
+    "files_to_modify": [
+        "packages/ui/src/lib/types.ts",
+        "packages/ui/src/components/IncidentTimeline.tsx",
+        "packages/ui/src/components/IncidentDetail.tsx",
+        "packages/kestra-flows/flows/decision-flow.yaml",
+        "packages/oumi-training/configs/policy_rl.yaml"
+    ],
+    "template": {
+        "action_type": "",
+        "description": "",
+        "default_risk": "low|medium|high",
+        "auto_approvable": true,
+        "icon": "lucide-icon-name"
+    }
+}

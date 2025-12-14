@@ -1,0 +1,150 @@
+id: collect-snapshot
+namespace: flowlens.ops
+description: |
+  Collects metrics, logs, and deployment data from various sources
+  and produces a structured snapshot for analysis.
+
+labels:
+  team: ops
+  type: data-collection
+
+inputs:
+  - id: time_range
+    type: STRING
+    defaults: "15m"
+    description: Time range to collect data for (e.g., 15m, 1h, 24h)
+  
+  - id: services
+    type: ARRAY
+    itemType: STRING
+    defaults: ["api-gateway", "user-service", "payment-service", "analytics-engine"]
+    description: List of services to collect metrics from
+
+variables:
+  snapshot_id: "{{ execution.id }}"
+  timestamp: "{{ now() }}"
+
+tasks:
+  # Task 1: Collect metrics from monitoring system
+  - id: collect_metrics
+    type: io.kestra.plugin.scripts.python.Script
+    description: Fetch metrics from Prometheus/CloudWatch
+    runner: PROCESS
+    script: |
+      import json
+      from datetime import datetime
+      
+      # In production, this would query actual monitoring APIs
+      # For demo, we generate realistic mock data
+      
+      services = {{ inputs.services | json }}
+      
+      metrics = []
+      for service in services:
+          # Simulated metrics per service
+          metrics.append({
+              "service": service,
+              "metrics": {
+                  "cpu_percent": round(30 + (hash(service) % 60), 2),
+                  "memory_mb": 256 + (hash(service) % 512),
+                  "request_rate": 100 + (hash(service) % 900),
+                  "error_rate": round(0.1 + (hash(service) % 5) / 10, 2),
+                  "p95_latency_ms": 50 + (hash(service) % 200)
+              }
+          })
+      
+      output = {
+          "timestamp": "{{ timestamp }}",
+          "metrics": metrics
+      }
+      
+      print(json.dumps(output))
+    outputFiles:
+      - metrics.json
+
+  # Task 2: Collect recent logs
+  - id: collect_logs
+    type: io.kestra.plugin.scripts.python.Script
+    description: Fetch recent logs from logging system
+    runner: PROCESS
+    script: |
+      import json
+      from datetime import datetime, timedelta
+      
+      # Simulated log entries
+      logs = [
+          {"timestamp": "{{ timestamp }}", "level": "info", "service": "api-gateway", "message": "Request processed successfully"},
+          {"timestamp": "{{ timestamp }}", "level": "warn", "service": "user-service", "message": "High latency detected on /api/users endpoint"},
+          {"timestamp": "{{ timestamp }}", "level": "error", "service": "user-service", "message": "Database connection timeout"},
+      ]
+      
+      print(json.dumps({"logs": logs}))
+    outputFiles:
+      - logs.json
+
+  # Task 3: Collect deployment events
+  - id: collect_deployments
+    type: io.kestra.plugin.scripts.python.Script
+    description: Fetch recent deployment events
+    runner: PROCESS
+    script: |
+      import json
+      
+      # Simulated recent deployments
+      deployments = [
+          {
+              "id": "dep-001",
+              "timestamp": "{{ timestamp }}",
+              "service": "user-service",
+              "version": "v2.4.1",
+              "author": "deploy-bot",
+              "status": "success"
+          }
+      ]
+      
+      print(json.dumps({"deployments": deployments}))
+    outputFiles:
+      - deployments.json
+
+  # Task 4: Aggregate into snapshot
+  - id: create_snapshot
+    type: io.kestra.plugin.scripts.python.Script
+    description: Combine all data into a structured snapshot
+    runner: PROCESS
+    script: |
+      import json
+      
+      snapshot = {
+          "id": "{{ snapshot_id }}",
+          "timestamp": "{{ timestamp }}",
+          "time_range": "{{ inputs.time_range }}",
+          "metrics": {{ outputs.collect_metrics.vars.metrics | default([]) | json }},
+          "logs": {{ outputs.collect_logs.vars.logs | default([]) | json }},
+          "deployments": {{ outputs.collect_deployments.vars.deployments | default([]) | json }}
+      }
+      
+      print(json.dumps(snapshot, indent=2))
+    outputFiles:
+      - snapshot.json
+
+  # Task 5: Store snapshot
+  - id: store_snapshot
+    type: io.kestra.plugin.core.storage.LocalFiles
+    description: Store snapshot for downstream flows
+    inputs:
+      snapshot.json: "{{ outputs.create_snapshot.outputFiles['snapshot.json'] }}"
+
+outputs:
+  - id: snapshot
+    type: JSON
+    value: "{{ outputs.create_snapshot.vars }}"
+  - id: snapshot_id
+    type: STRING
+    value: "{{ snapshot_id }}"
+
+triggers:
+  # Run every 5 minutes
+  - id: scheduled
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "*/5 * * * *"
+    disabled: true  # Enable in production

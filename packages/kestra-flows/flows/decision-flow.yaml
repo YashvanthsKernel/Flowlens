@@ -1,0 +1,199 @@
+id: decision-flow
+namespace: flowlens.ops
+description: |
+  The autonomous decision layer that evaluates proposed actions,
+  applies the Oumi-trained policy model, and executes safe actions
+  while requiring human approval for risky ones.
+
+labels:
+  team: ops
+  type: decision
+  autonomy: semi
+
+inputs:
+  - id: analysis_result
+    type: JSON
+    description: The analysis result from summarize-incident flow
+    required: true
+  
+  - id: auto_approve_low_risk
+    type: BOOLEAN
+    defaults: true
+    description: Automatically execute low-risk actions
+
+  - id: policy_model
+    type: STRING
+    defaults: "oumi-policy-v1"
+    description: The Oumi-trained policy model to use
+
+variables:
+  decision_id: "{{ execution.id }}"
+  timestamp: "{{ now() }}"
+
+tasks:
+  # Task 1: Evaluate actions with policy model
+  - id: evaluate_actions
+    type: io.kestra.plugin.scripts.python.Script
+    description: Score actions using Oumi-trained policy
+    runner: PROCESS
+    script: |
+      import json
+      
+      analysis = {{ inputs.analysis_result | json }}
+      actions = analysis.get("analysis", {}).get("actions", [])
+      auto_approve = {{ inputs.auto_approve_low_risk }}
+      
+      evaluated_actions = []
+      
+      for i, action in enumerate(actions):
+          # In production, this would call the Oumi policy model API
+          # For demo, we use a simple rule-based scoring
+          
+          risk = action.get("risk", "medium")
+          action_type = action.get("type", "unknown")
+          
+          # Confidence scoring (simulated policy model output)
+          if risk == "low":
+              confidence = 0.90 + (hash(action_type) % 10) / 100
+          elif risk == "medium":
+              confidence = 0.70 + (hash(action_type) % 20) / 100
+          else:
+              confidence = 0.50 + (hash(action_type) % 30) / 100
+          
+          # Decision logic
+          should_auto_execute = (
+              auto_approve and 
+              risk == "low" and 
+              confidence >= 0.85
+          )
+          
+          evaluated_actions.append({
+              "id": f"action-{i}",
+              "type": action_type,
+              "description": action.get("description", ""),
+              "risk": risk,
+              "confidence": round(confidence, 2),
+              "auto_approved": should_auto_execute,
+              "status": "approved" if should_auto_execute else "pending_approval",
+              "reasoning": f"Policy model confidence: {confidence:.0%}. " + (
+                  "Auto-approved based on low risk and high confidence." if should_auto_execute
+                  else "Requires human approval due to risk level or confidence threshold."
+              )
+          })
+      
+      result = {
+          "decision_id": "{{ decision_id }}",
+          "timestamp": "{{ timestamp }}",
+          "policy_model": "{{ inputs.policy_model }}",
+          "actions": evaluated_actions,
+          "auto_approved_count": sum(1 for a in evaluated_actions if a["auto_approved"]),
+          "pending_approval_count": sum(1 for a in evaluated_actions if not a["auto_approved"])
+      }
+      
+      print(json.dumps(result, indent=2))
+
+  # Task 2: Execute auto-approved actions
+  - id: execute_auto_approved
+    type: io.kestra.plugin.core.flow.ForEach
+    description: Execute actions that were auto-approved
+    values: "{{ outputs.evaluate_actions.vars.actions | selectattr('auto_approved', 'true') }}"
+    tasks:
+      - id: execute_action
+        type: io.kestra.plugin.core.flow.Switch
+        value: "{{ parent.taskrun.value.type }}"
+        cases:
+          notify:
+            - id: send_notification
+              type: io.kestra.plugin.core.log.Log
+              message: "🔔 NOTIFICATION: {{ parent.taskrun.value.description }}"
+          
+          scale_up:
+            - id: scale_service
+              type: io.kestra.plugin.core.log.Log
+              message: "📈 SCALING: {{ parent.taskrun.value.description }}"
+          
+          run_diagnostics:
+            - id: run_diag
+              type: io.kestra.plugin.core.log.Log
+              message: "🔍 DIAGNOSTICS: {{ parent.taskrun.value.description }}"
+        
+        defaults:
+          - id: log_action
+            type: io.kestra.plugin.core.log.Log
+            message: "⚡ EXECUTING: {{ parent.taskrun.value.type }} - {{ parent.taskrun.value.description }}"
+
+  # Task 3: Send pending approvals to UI
+  - id: send_to_ui
+    type: io.kestra.plugin.core.http.Request
+    description: Send pending actions to FlowLens UI for human approval
+    uri: "{{ vars.ui_webhook | default('http://localhost:3000/api/decisions') }}"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "decision_id": "{{ decision_id }}",
+        "timestamp": "{{ timestamp }}",
+        "snapshot_id": "{{ inputs.analysis_result.snapshot_id }}",
+        "analysis": {{ inputs.analysis_result.analysis | json }},
+        "evaluated_actions": {{ outputs.evaluate_actions.vars.actions | json }},
+        "pending_count": {{ outputs.evaluate_actions.vars.pending_approval_count }}
+      }
+    timeout: PT10S
+    allowFailed: true
+
+  # Task 4: Log decision for Oumi training data
+  - id: log_for_training
+    type: io.kestra.plugin.scripts.python.Script
+    description: Log decision data for future Oumi RL training
+    runner: PROCESS
+    script: |
+      import json
+      
+      training_record = {
+          "decision_id": "{{ decision_id }}",
+          "timestamp": "{{ timestamp }}",
+          "input": {
+              "snapshot_id": "{{ inputs.analysis_result.snapshot_id }}",
+              "anomalies": {{ inputs.analysis_result.anomalies | default([]) | json }},
+              "analysis": {{ inputs.analysis_result.analysis | default({}) | json }}
+          },
+          "output": {
+              "actions": {{ outputs.evaluate_actions.vars.actions | json }},
+              "auto_approved": {{ outputs.evaluate_actions.vars.auto_approved_count }},
+              "pending": {{ outputs.evaluate_actions.vars.pending_approval_count }}
+          },
+          "label": null  # To be filled by human review
+      }
+      
+      # In production, this would append to training dataset
+      print(json.dumps(training_record, indent=2))
+    outputFiles:
+      - training_record.json
+
+outputs:
+  - id: decision
+    type: JSON
+    value: "{{ outputs.evaluate_actions.vars }}"
+  - id: auto_executed_count
+    type: NUMBER
+    value: "{{ outputs.evaluate_actions.vars.auto_approved_count }}"
+  - id: pending_approval_count
+    type: NUMBER
+    value: "{{ outputs.evaluate_actions.vars.pending_approval_count }}"
+
+triggers:
+  # Triggered by summarize-incident flow
+  - id: on_analysis
+    type: io.kestra.plugin.core.trigger.Flow
+    preconditions:
+      - type: io.kestra.plugin.core.condition.ExecutionStatusCondition
+        in: [SUCCESS]
+    inputs:
+      analysis_result: "{{ trigger.outputs.analysis_result }}"
+    conditions:
+      - type: io.kestra.plugin.core.condition.ExecutionFlowCondition
+        namespace: flowlens.ops
+        flowId: summarize-incident
+      - type: io.kestra.plugin.core.condition.ExpressionCondition
+        expression: "{{ trigger.outputs.anomaly_count > 0 }}"

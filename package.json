@@ -1,0 +1,30 @@
+{
+    "name": "flowlens",
+    "version": "0.1.0",
+    "private": true,
+    "description": "AI Ops Copilot - Autonomous analysis and action for data-driven teams",
+    "workspaces": [
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "cd packages/ui && npm run dev",
+        "build": "cd packages/ui && npm run build",
+        "lint": "npm run lint --workspaces --if-present",
+        "test": "npm run test --workspaces --if-present"
+    },
+    "keywords": [
+        "ai",
+        "ops",
+        "copilot",
+        "kestra",
+        "oumi",
+        "llm",
+        "workflow",
+        "automation"
+    ],
+    "author": "FlowLens Team",
+    "license": "MIT",
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-build:
+    name: Lint & Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: packages/ui
+
+      - name: Run linter
+        run: npm run lint
+        working-directory: packages/ui
+
+      - name: Build
+        run: npm run build
+        working-directory: packages/ui
+
+  validate-kestra:
+    name: Validate Kestra Flows
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Validate YAML syntax
+        run: yamllint packages/kestra-flows/flows/*.yaml
+        continue-on-error: true
+
+      - name: Check flow structure
+        run: |
+          for file in packages/kestra-flows/flows/*.yaml; do
+            echo "Checking $file..."
+            # Basic structure validation
+            if ! grep -q "^id:" "$file"; then
+              echo "Error: $file missing 'id' field"
+              exit 1
+            fi
+            if ! grep -q "^namespace:" "$file"; then
+              echo "Error: $file missing 'namespace' field"
+              exit 1
+            fi
+          done
+          echo "All flows valid!"
+
+  typecheck:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: packages/ui
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+        working-directory: packages/ui
+
+  # CodeRabbit will automatically review PRs
+  # No additional configuration needed - just ensure
+  # the CodeRabbit GitHub App is installed on the repo

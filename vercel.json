@@ -1,0 +1,7 @@
+{
+    "buildCommand": "cd packages/ui && npm install && npm run build",
+    "outputDirectory": "packages/ui/.next",
+    "installCommand": "cd packages/ui && npm install",
+    "framework": "nextjs",
+    "devCommand": "cd packages/ui && npm run dev"
+}

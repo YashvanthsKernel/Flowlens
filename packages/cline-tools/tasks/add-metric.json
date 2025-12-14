@@ -1,0 +1,26 @@
+{
+    "name": "add-metric",
+    "description": "Add a new metric to the FlowLens monitoring pipeline",
+    "version": "1.0.0",
+    "instructions": [
+        "1. Add the new metric to the collect-snapshot Kestra flow",
+        "2. Update the Snapshot TypeScript interface in packages/ui/src/lib/types.ts",
+        "3. Update the mock data in packages/ui/src/lib/data.ts",
+        "4. Add visualization in the MetricCard component if needed",
+        "5. Update the summarize-incident flow to include new metric in analysis",
+        "6. Run tests and create PR"
+    ],
+    "files_to_modify": [
+        "packages/kestra-flows/flows/collect-snapshot.yaml",
+        "packages/ui/src/lib/types.ts",
+        "packages/ui/src/lib/data.ts",
+        "packages/ui/src/components/IncidentDetail.tsx"
+    ],
+    "template": {
+        "metric_name": "",
+        "metric_unit": "",
+        "threshold_warning": 0,
+        "threshold_critical": 0,
+        "source": "prometheus|cloudwatch|custom"
+    }
+}

@@ -1,0 +1,104 @@
+# FlowLens Policy Model - Reinforcement Learning Config
+# Uses Oumi RLHF/DPO for improving decision quality
+
+model:
+  name: "flowlens-policy-rl-v1"
+  # Start from SFT checkpoint
+  base_model: "checkpoints/policy-v1/final"
+  
+  # Reference model for KL penalty
+  reference_model: "checkpoints/policy-v1/final"
+
+algorithm:
+  # DPO (Direct Preference Optimization) - simpler than PPO
+  type: "dpo"
+  
+  # DPO hyperparameters
+  beta: 0.1  # KL penalty coefficient
+  loss_type: "sigmoid"  # or "hinge"
+  
+  # Alternative: PPO settings (if using PPO)
+  # type: "ppo"
+  # ppo_epochs: 4
+  # clip_range: 0.2
+  # value_loss_coef: 0.1
+  # kl_coef: 0.05
+
+training:
+  epochs: 2
+  batch_size: 2
+  gradient_accumulation_steps: 8
+  learning_rate: 5e-7
+  warmup_ratio: 0.1
+  
+  # Lower learning rate for RL fine-tuning
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  
+  # Mixed precision
+  bf16: true
+
+data:
+  # Preference data: pairs of (chosen, rejected) responses
+  train_file: "data/preference_data.jsonl"
+  
+  # Data format for DPO
+  # Each example: {"prompt": "...", "chosen": "...", "rejected": "..."}
+  format: "preference"
+  
+  max_length: 2048
+
+reward_model:
+  # Optional: use a reward model instead of preference data
+  enabled: false
+  model_path: "checkpoints/reward-model"
+  
+  # Reward shaping
+  reward_baseline: 0.0
+  reward_scale: 1.0
+
+evaluation:
+  # Win rate against reference model
+  metrics:
+    - win_rate
+    - kl_divergence
+    - reward_mean
+  
+  # Evaluate every N steps
+  eval_steps: 100
+  
+  # LLM-as-judge for RL
+  llm_judge:
+    enabled: true
+    model: "claude-3-sonnet"
+    comparison_prompt: |
+      Compare these two AI operations decisions. Which one is better?
+      Consider: appropriateness, risk assessment, clarity, and safety.
+      
+      Decision A: {response_a}
+      Decision B: {response_b}
+      
+      Winner (A or B):
+
+output:
+  output_dir: "checkpoints/policy-rl-v1"
+  logging_dir: "logs/policy-rl-v1"
+  
+  # Checkpoint strategy
+  save_strategy: "steps"
+  save_steps: 50
+  save_total_limit: 5
+
+# Safety constraints
+safety:
+  # Actions that should never be auto-approved
+  blocked_auto_approve:
+    - "delete_data"
+    - "shutdown_service"
+    - "rollback_database"
+  
+  # Maximum confidence for high-risk actions
+  max_confidence_high_risk: 0.7
+  
+  # Require human approval thresholds
+  human_approval_threshold: 0.85

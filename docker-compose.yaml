@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # Kestra Server
+  kestra:
+    image: kestra/kestra:latest
+    container_name: flowlens-kestra
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      KESTRA_CONFIGURATION: |
+        kestra:
+          repository:
+            type: postgres
+          storage:
+            type: local
+            local:
+              base-path: /app/storage
+          queue:
+            type: postgres
+          # FlowLens specific
+          variables:
+            llm_endpoint: http://ollama:11434/api/generate
+            ui_webhook: http://host.docker.internal:3000/api/decisions
+    volumes:
+      - kestra-data:/app/storage
+      - ./packages/kestra-flows/flows:/app/flows:ro
+    depends_on:
+      - postgres
+    networks:
+      - flowlens-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL for Kestra
+  postgres:
+    image: postgres:15-alpine
+    container_name: flowlens-postgres
+    environment:
+      POSTGRES_USER: kestra
+      POSTGRES_PASSWORD: kestra
+      POSTGRES_DB: kestra
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - flowlens-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kestra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ollama for local LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: flowlens-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - flowlens-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Remove 'deploy' section if no GPU available
+
+  # FlowLens UI (for local development)
+  # In production, this is deployed to Vercel
+  ui:
+    build:
+      context: ./packages/ui
+      dockerfile: Dockerfile
+    container_name: flowlens-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - KESTRA_API_URL=http://kestra:8080
+      - NODE_ENV=production
+    depends_on:
+      - kestra
+    networks:
+      - flowlens-network
+    profiles:
+      - full  # Only run with: docker-compose --profile full up
+
+volumes:
+  kestra-data:
+  postgres-data:
+  ollama-data:
+
+networks:
+  flowlens-network:
+    driver: bridge

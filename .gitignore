@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Kestra
+packages/kestra-flows/.kestra/
+
+# Oumi
+packages/oumi-training/checkpoints/
+packages/oumi-training/logs/
+packages/oumi-training/models/
+
+# Docker volumes
+postgres-data/
+kestra-data/
+ollama-data/
+
+# Misc
+*.tgz

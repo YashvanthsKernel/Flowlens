@@ -1,0 +1,189 @@
+id: summarize-incident
+namespace: flowlens.ops
+description: |
+  Uses an LLM to analyze the snapshot and generate an incident summary
+  with root cause analysis and recommended actions.
+
+labels:
+  team: ops
+  type: ai-analysis
+  model: qwen-2.5
+
+inputs:
+  - id: snapshot
+    type: JSON
+    description: The snapshot data to analyze
+    required: true
+  
+  - id: snapshot_id
+    type: STRING
+    description: ID of the snapshot being analyzed
+    required: true
+
+  - id: severity_threshold
+    type: NUMBER
+    defaults: 0.5
+    description: Threshold for detecting anomalies (0-1)
+
+variables:
+  analysis_id: "{{ execution.id }}"
+  timestamp: "{{ now() }}"
+
+tasks:
+  # Task 1: Detect anomalies in metrics
+  - id: detect_anomalies
+    type: io.kestra.plugin.scripts.python.Script
+    description: Analyze metrics for anomalies
+    runner: PROCESS
+    script: |
+      import json
+      
+      snapshot = {{ inputs.snapshot | json }}
+      threshold = {{ inputs.severity_threshold }}
+      
+      anomalies = []
+      
+      # Check each service's metrics
+      for service_data in snapshot.get("metrics", []):
+          service = service_data.get("service", "unknown")
+          metrics = service_data.get("metrics", {})
+          
+          # High error rate detection
+          if metrics.get("error_rate", 0) > 2.0:
+              anomalies.append({
+                  "type": "high_error_rate",
+                  "service": service,
+                  "value": metrics["error_rate"],
+                  "severity": "high" if metrics["error_rate"] > 5 else "medium"
+              })
+          
+          # High latency detection
+          if metrics.get("p95_latency_ms", 0) > 200:
+              anomalies.append({
+                  "type": "high_latency",
+                  "service": service,
+                  "value": metrics["p95_latency_ms"],
+                  "severity": "medium"
+              })
+          
+          # High CPU detection
+          if metrics.get("cpu_percent", 0) > 80:
+              anomalies.append({
+                  "type": "high_cpu",
+                  "service": service,
+                  "value": metrics["cpu_percent"],
+                  "severity": "high" if metrics["cpu_percent"] > 90 else "medium"
+              })
+      
+      # Check logs for errors
+      error_logs = [l for l in snapshot.get("logs", []) if l.get("level") == "error"]
+      if error_logs:
+          anomalies.append({
+              "type": "error_logs",
+              "count": len(error_logs),
+              "severity": "high" if len(error_logs) > 5 else "medium"
+          })
+      
+      print(json.dumps({"anomalies": anomalies, "count": len(anomalies)}))
+
+  # Task 2: Generate LLM summary using AI agent
+  - id: generate_summary
+    type: io.kestra.plugin.core.http.Request
+    description: Call LLM API for incident summarization
+    uri: "{{ vars.llm_endpoint | default('http://localhost:11434/api/generate') }}"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "model": "qwen2.5:7b",
+        "prompt": "You are an SRE expert analyzing a production incident. Based on the following data, provide:\n1. A concise summary (2-3 sentences)\n2. Root cause analysis\n3. Impact assessment\n4. Recommended actions with risk levels\n\nSnapshot Data:\n{{ inputs.snapshot | json }}\n\nDetected Anomalies:\n{{ outputs.detect_anomalies.body | json }}\n\nProvide your analysis in JSON format with keys: summary, root_cause, impact, actions[]",
+        "stream": false,
+        "format": "json"
+      }
+    timeout: PT60S
+    allowFailed: true
+
+  # Task 3: Parse LLM response or use fallback
+  - id: parse_analysis
+    type: io.kestra.plugin.scripts.python.Script
+    description: Parse LLM response and structure the analysis
+    runner: PROCESS
+    script: |
+      import json
+      
+      anomalies = {{ outputs.detect_anomalies.body | default('{"anomalies": []}') | json }}
+      
+      try:
+          llm_response = {{ outputs.generate_summary.body | default('{}') | json }}
+          analysis = json.loads(llm_response.get("response", "{}"))
+      except:
+          # Fallback analysis if LLM is unavailable
+          analysis = {
+              "summary": "System anomalies detected requiring attention.",
+              "root_cause": "Multiple metrics exceeded thresholds.",
+              "impact": "Potential service degradation for affected services.",
+              "actions": []
+          }
+      
+      # Add default actions based on anomalies
+      if not analysis.get("actions"):
+          for anomaly in anomalies.get("anomalies", []):
+              if anomaly.get("type") == "high_error_rate":
+                  analysis.setdefault("actions", []).append({
+                      "type": "rollback",
+                      "description": f"Rollback {anomaly.get('service')} to previous version",
+                      "risk": "medium",
+                      "auto_approve": False
+                  })
+              elif anomaly.get("type") == "high_cpu":
+                  analysis.setdefault("actions", []).append({
+                      "type": "scale_up",
+                      "description": f"Scale {anomaly.get('service')} horizontally",
+                      "risk": "low",
+                      "auto_approve": True
+                  })
+          
+          # Always add notify action
+          analysis.setdefault("actions", []).append({
+              "type": "notify",
+              "description": "Alert on-call team",
+              "risk": "low",
+              "auto_approve": True
+          })
+      
+      result = {
+          "analysis_id": "{{ analysis_id }}",
+          "snapshot_id": "{{ inputs.snapshot_id }}",
+          "timestamp": "{{ timestamp }}",
+          "anomalies": anomalies.get("anomalies", []),
+          "analysis": analysis
+      }
+      
+      print(json.dumps(result, indent=2))
+
+outputs:
+  - id: analysis_result
+    type: JSON
+    value: "{{ outputs.parse_analysis.vars }}"
+  - id: anomaly_count
+    type: NUMBER
+    value: "{{ outputs.detect_anomalies.vars.count }}"
+  - id: actions
+    type: JSON
+    value: "{{ outputs.parse_analysis.vars.analysis.actions }}"
+
+triggers:
+  # Triggered by collect-snapshot flow
+  - id: on_snapshot
+    type: io.kestra.plugin.core.trigger.Flow
+    preconditions:
+      - type: io.kestra.plugin.core.condition.ExecutionStatusCondition
+        in: [SUCCESS]
+    inputs:
+      snapshot: "{{ trigger.outputs.snapshot }}"
+      snapshot_id: "{{ trigger.outputs.snapshot_id }}"
+    conditions:
+      - type: io.kestra.plugin.core.condition.ExecutionFlowCondition
+        namespace: flowlens.ops
+        flowId: collect-snapshot
