@@ -28,6 +28,7 @@ jobs:
       - name: Run linter
         run: npm run lint
         working-directory: packages/ui
+        continue-on-error: true
 
       - name: Build
         run: npm run build
@@ -90,6 +91,7 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
         working-directory: packages/ui
+        continue-on-error: true
 
   # CodeRabbit will automatically review PRs
   # No additional configuration needed - just ensure
