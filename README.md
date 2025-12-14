@@ -117,8 +117,13 @@ flowlens/
 │   │   ├── src/
 │   │   │   ├── app/           # App router pages
 │   │   │   ├── components/    # React components
-│   │   │   └── lib/           # Types & utilities
+│   │   │   └── lib/           # Types, API client & hooks
 │   │   └── package.json
+│   ├── backend/               # Python FastAPI server
+│   │   ├── main.py            # API endpoints
+│   │   ├── models.py          # Pydantic models
+│   │   ├── services/          # Kestra & LLM integrations
+│   │   └── requirements.txt
 │   ├── kestra-flows/          # Kestra workflow definitions
 │   │   └── flows/
 │   │       ├── collect-snapshot.yaml
