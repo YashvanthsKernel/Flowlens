@@ -1,3 +1,7 @@
+# 🔍 FlowLens
+
+
+
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/Kestra-Workflows-blue?style=for-the-badge" alt="Kestra" />
@@ -5,7 +9,7 @@
   <img src="https://img.shields.io/badge/Vercel-Deployed-black?style=for-the-badge&logo=vercel" alt="Vercel" />
 </p>
 
-# 🔍 FlowLens
+
 
 > **AI Ops Copilot** — Autonomous analysis and action for data-driven teams
 
